@@ -72,7 +72,7 @@ class BasePlugin:
             DumpConfigToLog()
 
         self.SourceOptions =    { "LevelActions"  : "||||", 
-                                  "LevelNames"    : "Off|Previous|Play|Pause|Next",
+                                  "LevelNames"    : "Off|Previous|Play|Pause|Next|Snooze|Stop",
                                   "LevelOffHidden": "true",
                                   "SelectorStyle" : "0"
                                 }
@@ -163,7 +163,8 @@ class BasePlugin:
                 self.sonos_SetCommand('Stop')
                 self.playerState = 0
                 self.mediaDescription = 'Off'
-        if self.playerState == 1 or self.playerState == 2: # Only react to switches when Sonos is on or paused
+        if true: # CHANGE: always reasct to putton pushes
+        #if self.playerState == 1 or self.playerState == 2: # Only react to switches when Sonos is on or paused
             if Unit == 2:  # Volume control
                 if action == 'Set' and (params.capitalize() == 'Level' or Command.lower() == 'Volume'):
                     self.mediaLevel = Level
@@ -190,6 +191,10 @@ class BasePlugin:
                     self.mediaDescription = 'Paused'
                 if Level == 40:                         #Next
                     self.sonos_SetCommand('Next')
+                if Level == 50:                         #Snooze Alarm
+                    self.sonos_SetCommand('SnoozeAlarm')
+                if Level == 60:                         #Stop Alarm
+                    self.sonos_SetCommand('Stop')
                 self.sonosControl = Level
             if Unit == 4: # Radio
                 if Level == 0:
@@ -359,10 +364,11 @@ class BasePlugin:
         conn.request("POST", url, data, headers)
         response = conn.getresponse()
         conn.close()
-    
+
+        LogMessage("Response from Sonos...")    
+        data = response.read().decode("utf-8")
+        LogMessage(str(data))
         if response.status == 200:
-            data = response.read().decode("utf-8")
-            LogMessage(str(data))
             self.parseMessage(data)
         else:
             Domoticz.Error("Unexpected response status received in function sendMessage (" + str(response.status) + ", " + str(response.reason) + "). \
@@ -609,14 +615,18 @@ class BasePlugin:
         return
 
     def sonos_SetCommand(self, command):
-        '''Set the command, e.g. Play, Pause, Stop, Previous, Next'''
+        '''Set the command, e.g. Play, Pause, Stop, Previous, Next, SnoozeAlarm, Stop'''
+        params = ""
+        if command == 'SnoozeAlarm':
+           params = '<Duration>00:10:00</Duration>'
+        elif command == 'Play':
+           params = '<Speed>1</Speed>'
+        
         self.sendMessage('<?xml version="1.0"?>\
                             <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">\
                                 <s:Body>\
                                     <u:' + command + ' xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">\
-                                        <InstanceID>0</InstanceID>\
-                                        <Speed>1</Speed>\
-                                    </u:' + command + '>\
+                                        <InstanceID>0</InstanceID>' + params + '</u:' + command + '>\
                                 </s:Body>\
                             </s:Envelope>', 
                             'urn:schemas-upnp-org:service:AVTransport:1#' + command + '', "/MediaRenderer/AVTransport/Control")
